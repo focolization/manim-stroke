@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "manim-stroke"
+version = "0.1.0"
+description = "Hand-drawn classroom annotations and handwriting animations for Manim"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "manim>=0.20,<0.21",
+    "numpy>=2.0",
+    "hershey-fonts>=2.1,<3",
+]
+
+[tool.setuptools.packages.find]
+include = ["manim_stroke*"]
