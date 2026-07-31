@@ -24,6 +24,84 @@ class Example(Scene):
 
 若场景文件不在本仓库中，将仓库根目录加入 `PYTHONPATH` 后使用相同导入路径。
 
+## 演示视频
+
+下面这支宣传片用同一组课堂批注，直观对比原生 Manim 的规整几何和
+`manim-stroke` 的自然笔触：手写文字、下划线、删除线、圈选、高亮和常用手势。
+
+<video controls width="720" src="https://github.com/user-attachments/assets/f5b27c4e-3862-4f2a-82e1-9c6d0025d52a"></video>
+
+如果当前页面不直接播放，也可以[打开视频附件](https://github.com/user-attachments/assets/f5b27c4e-3862-4f2a-82e1-9c6d0025d52a)。
+
+## 原生 Manim vs `manim-stroke`
+
+原生 Manim 当然可以画线、画圆、做高亮；但这些几何通常需要自己计算位置、大小和动画
+顺序。`manim-stroke` 把这层重复工作封装起来，并在最终轮廓上加入可复现的自然变化。
+
+### 同一个公式：下划线与圈选
+
+原生写法需要手动根据目标位置和宽高搭几何对象：
+
+```python
+from manim import *
+
+
+class Native(Scene):
+    def construct(self):
+        formula = MathTex("a^2+b^2=c^2")
+        self.add(formula)
+
+        # 位置、长度和半径都要自己估算；这是规整几何。
+        line = Line(
+            formula.get_left() + DOWN * 0.18,
+            formula.get_right() + DOWN * 0.18,
+            color="#E85D75",
+            stroke_width=5,
+        )
+        ring = Circle(
+            radius=max(formula.height * 0.85, 0.4),
+            color="#087EA4",
+            stroke_width=5,
+        ).move_to(formula)
+        self.play(Create(line), Create(ring))
+```
+
+`manim-stroke` 直接把目标交给手势函数：
+
+```python
+from manim import *
+from manim_stroke import DrawMark, circle, underline
+
+
+class Stroke(Scene):
+    def construct(self):
+        formula = MathTex("a^2+b^2=c^2")
+        self.add(formula)
+
+        # 自动读取目标 bbox；起伏、圆头和绘制过程由库处理。
+        line = underline(formula, color="#E85D75", seed=7, variation=1.2)
+        ring = circle(formula, color="#087EA4", seed=8, closed=False)
+        self.play(DrawMark(line), DrawMark(ring))
+```
+
+### 手写文字
+
+```python
+# 原生 Manim：Write() 是印刷体字形。
+self.play(Write(Text("learn math")))
+
+# manim-stroke：按笔画顺序生成手写字形，带提笔间隔和稳定 seed。
+from manim_stroke import DrawHandwriting, StrokeText
+
+word = StrokeText("learn math", font="futural", size=1.0,
+                  color="#D97706", at=ORIGIN, seed=11)
+self.play(DrawHandwriting(word))
+```
+
+对比的重点不是“原生 Manim 完全做不到”，而是：同样的课堂动作，
+`manim-stroke` 不需要每次手写 bbox 计算、路径采样和逐笔动画，且每个标记仍可通过
+`seed` 复现、通过 `variation` 控制自然程度。
+
 ## 文档
 
 README 保留可快速运行的入口；完整公开 API 按用户任务拆在 [`docs/`](docs/index.md)，避免一个
