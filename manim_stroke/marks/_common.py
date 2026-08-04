@@ -9,6 +9,9 @@ from typing import Callable, Optional
 
 from manim import Polygon, VGroup
 
+from ..freehand import get_stroke
+from ..handwriting import HandwritingStyle, polyline_length
+
 
 @dataclass(frozen=True)
 class MarkStyle:
@@ -152,3 +155,64 @@ def _make_mark(target, kind: str, build: Callable, *, speed: str, seed: int,
         seed=seed,
         variation=variation,
     )
+
+
+# ── 手写 glyph → 场景坐标 的共享助手（letter / hanzi 共用）──
+
+def _glyph_center(target, position: str, glyph_w: float, glyph_h: float, gap: float):
+    """按 position 算字母中心坐标（manim 场景坐标）。"""
+    cx, cy = target.get_center()[:2]
+    if position == "center":
+        return cx, cy
+    if position == "left":
+        return target.get_left()[0] - gap - glyph_w / 2, cy
+    if position == "right":
+        return target.get_right()[0] + gap + glyph_w / 2, cy
+    if position == "above":
+        return cx, target.get_top()[1] + gap + glyph_h / 2
+    if position == "below":
+        return cx, target.get_bottom()[1] - gap - glyph_h / 2
+    if position == "upper-right":
+        return (target.get_right()[0] + gap + glyph_w / 2,
+                target.get_top()[1] + gap + glyph_h / 2)
+    raise ValueError(f"unknown position {position!r}; "
+                     f"choose from left/right/above/below/upper-right/center")
+
+
+def _transform_point(p, scale: float, rot: float, tx: float, ty: float):
+    """缩放→旋转→平移。p 在字高=1 坐标系。"""
+    x, y = p[0] * scale, p[1] * scale
+    c, s = math.cos(rot), math.sin(rot)
+    return [x * c - y * s + tx, x * s + y * c + ty]
+
+
+def _glyph_placement_params(hw: HandwritingStyle, seed: int, size: float):
+    """从 seed 算 per-glyph 微旋/微缩 + 笔宽 + 缩放比。返回
+    (glyph_rot, glyph_scale, pen_w, scale)。"""
+    grng = random.Random(seed)
+    glyph_rot = math.radians(max(-hw.glyph_rotation_limit_deg,
+                                 min(hw.glyph_rotation_limit_deg,
+                                     grng.gauss(0.0, hw.glyph_rotation_std_deg))))
+    glyph_scale = max(hw.glyph_scale_min, min(hw.glyph_scale_max,
+                                              grng.gauss(1.0, hw.glyph_scale_std)))
+    pen_w = size * hw.stroke_size_ratio * glyph_scale
+    scale = size * glyph_scale
+    return glyph_rot, glyph_scale, pen_w, scale
+
+
+def _render_strokes(glyph, scale: float, glyph_rot: float, tx: float, ty: float,
+                    pen_w: float, hw: HandwritingStyle, color):
+    """把 glyph 各笔 缩放→旋转→平移到 (tx,ty)，逐笔 get_stroke 描边。
+    返回 (polygons, centerlines, options, durations, n_strokes)。opt 字典只此一份。"""
+    polys, clines, opts, durs = [], [], [], []
+    for s in glyph.strokes:
+        pts = [_transform_point(p, scale, glyph_rot, tx, ty) for p in s.points]
+        taper = polyline_length(pts) * hw.pen_taper_frac
+        opt = {"size": pen_w, "thinning": 0.0, "smoothing": hw.smoothing,
+               "streamline": hw.streamline, "last": True,
+               "start": {"cap": True, "taper": taper}, "end": {"cap": True, "taper": taper}}
+        polys.append(_to_polygon(get_stroke(pts, **opt), color))
+        clines.append(pts)
+        opts.append(opt)
+        durs.append(s.duration)
+    return polys, clines, opts, durs, len(glyph.strokes)

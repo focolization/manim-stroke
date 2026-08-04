@@ -8,23 +8,27 @@
 
 manim 绑定在 marks/letter.py，播放动画在 animation.py（DrawHandwriting）。
 """
-from .style import HandwritingStyle, DEFAULT_HANDWRITING
+from .style import HandwritingStyle, DEFAULT_HANDWRITING, HANZI_HANDWRITING
 from .timing import (lognormal_mu_for_duration, lognormal_velocity, lognormal_cumulative,
                      lognormal_progress, lognormal_progress_multi, detect_peaks,
-                     stroke_duration, pen_up_gap)
+                     stroke_duration, pen_up_gap, minimum_jerk_transition,
+                     minimum_jerk_velocity, speed_curvature_violation)
 from .deform import (polyline_length, resample_arclength, wobble_polyline_normal)
 from .segment import segment_deform
 from .slant import slant_sequence, shear_polyline
 from .structure import structure_deform
-from .glyph import letter_glyph, HandwritingStroke, HandwritingGlyph, sample_glyph_ratios
+from .glyph import letter_glyph, hanzi_glyph, HandwritingStroke, HandwritingGlyph, sample_glyph_ratios
+from .sources import GlyphSource, HersheySource, HanziSource, HanziData, catmull_rom
 
 __all__ = [
-    "HandwritingStyle", "DEFAULT_HANDWRITING",
+    "HandwritingStyle", "DEFAULT_HANDWRITING", "HANZI_HANDWRITING",
     "lognormal_mu_for_duration", "lognormal_velocity", "lognormal_cumulative",
     "lognormal_progress", "lognormal_progress_multi", "detect_peaks", "stroke_duration", "pen_up_gap",
+    "minimum_jerk_transition", "minimum_jerk_velocity", "speed_curvature_violation",
     "polyline_length", "resample_arclength", "wobble_polyline_normal",
     "segment_deform",
     "slant_sequence", "shear_polyline",
     "structure_deform",
-    "letter_glyph", "HandwritingStroke", "HandwritingGlyph", "sample_glyph_ratios",
+    "letter_glyph", "hanzi_glyph", "HandwritingStroke", "HandwritingGlyph", "sample_glyph_ratios",
+    "GlyphSource", "HersheySource", "HanziSource", "HanziData", "catmull_rom",
 ]

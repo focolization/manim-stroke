@@ -94,6 +94,20 @@ class MarksApiTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             circle(self.target, ratio=0)
 
+    def test_hanzi_mark_builds_strokes(self):
+        # 汉字 mark 依赖内置数据；缺数据时跳过
+        from manim_stroke.handwriting.sources.hanzi import HanziData
+        path = os.environ.get("MAKE_ME_A_HANZI") or HanziData().path
+        if not os.path.exists(path):
+            self.skipTest(f"汉字数据不存在（{path}）")
+        from manim_stroke.marks import hanzi
+        m = hanzi(self.target, "我", seed=3)
+        self.assertEqual(m.kind, "hanzi")
+        self.assertEqual(len(m.submobjects), 7)            # 我 = 7 笔
+        self.assertEqual(len(m.handwriting_durations), 7)
+        self.assertTrue(all(d > 0 for d in m.handwriting_durations))
+        self.assertEqual(len(m.handwriting_gaps), 6)       # 7 笔 → 6 个提笔间隔
+
 
 if __name__ == "__main__":
     unittest.main()

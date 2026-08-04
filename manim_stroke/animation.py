@@ -229,8 +229,8 @@ class DrawHandwriting(Succession):
                 zip(mark.submobjects, mark.centerlines, mark.stroke_options)):
             n_peaks = peaks[i]
             duration = durations[i]
-            curve = (lambda alpha, n=n_peaks, d=duration: _handwriting_progress_multi(
-                alpha, hw.lognormal_sigma, n, hw.command_spacing / d,
+            curve = (lambda alpha, n=n_peaks: _handwriting_progress_multi(
+                alpha, hw.lognormal_sigma, n, hw.peak_overlap,
                 hw.completion_quantile))
             anims.append(ProgressiveStroke(final, points, options,
                                            speed=curve, kind="letter",

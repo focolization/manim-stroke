@@ -107,47 +107,94 @@ def detect_peaks(polyline, tau: float = math.radians(55.0),
 
 
 def lognormal_progress_multi(alpha: float, sigma: float = 0.35,
-                             n_peaks: int = 1, t0_spacing: float = 0.0,
+                             n_peaks: int = 1, overlap: float = 0.4,
                              completion_quantile: float = 0.995) -> float:
-    """Progress for sequential Sigma-Lognormal commands, normalized to [0, 1].
+    """Overlapping 1D Sigma-Lognormal pulses → progress, normalized to [0, 1].
 
-    ``t0_spacing`` is expressed in the same normalized time axis as ``alpha``.
-    Each command receives equal path length and a full lognormal pulse; the
-    spacing becomes a genuine low-speed plateau at a hard corner.  One peak is
-    exactly the legacy :func:`lognormal_progress` curve.
+    Geometry/kinematics decoupling: the prescribed centerline γ(s) is never
+    changed; only the scalar time law s(t) is shaped.  Each ``n_peaks`` virtual
+    target contributes a full lognormal velocity pulse, and consecutive pulses
+    **overlap** in time (the next starts before the previous has ended).  The
+    summed speed (d progress / d α) therefore dips at corners but never hits a
+    hard zero plateau — the corner deceleration emerges naturally from the
+    pulse overlap and geometry, not from an inserted ``command_spacing`` wait.
+
+    ``overlap`` ∈ [0, 0.95] is the fraction of a pulse's width shared with its
+    neighbour.  ``n_peaks == 1`` is exactly the legacy :func:`lognormal_progress`.
     """
-    n_peaks = max(1, int(n_peaks))
-    if n_peaks == 1:
+    n = max(1, int(n_peaks))
+    if n == 1:
         return lognormal_progress(alpha, sigma, completion_quantile)
     alpha = max(0.0, min(1.0, alpha))
-    gap = max(0.0, float(t0_spacing))
-    # Leave every command a usable interval even if a caller supplies a large gap.
-    gap = min(gap, 0.8 / max(1, n_peaks - 1))
-    command_span = (1.0 - gap * (n_peaks - 1)) / n_peaks
-    result = 0.0
-    for command in range(n_peaks):
-        start = command * (command_span + gap)
-        local = (alpha - start) / command_span
-        if local >= 1.0:
-            progress = 1.0
-        elif local <= 0.0:
-            progress = 0.0
-        else:
-            progress = lognormal_progress(local, sigma, completion_quantile)
-        result += progress / n_peaks
-    return min(1.0, result)
+    overlap = max(0.0, min(0.95, float(overlap)))
+    step = 1.0 / n                       # evenly spaced pulse starts
+    width = step / (1.0 - overlap)       # > step ⇒ neighbours overlap
+
+    def raw(a: float) -> float:
+        total = 0.0
+        for i in range(n):
+            local = (a - i * step) / width
+            if local <= 0.0:
+                c = 0.0
+            elif local >= 1.0:
+                c = 1.0
+            else:
+                c = lognormal_progress(local, sigma, completion_quantile)
+            total += c / n
+        return total
+
+    full = raw(1.0)                      # guarantee p(1) == 1 exactly
+    if full <= 0.0:
+        return 0.0
+    return min(1.0, raw(alpha) / full)
 
 
 def stroke_duration(length: float, style: HandwritingStyle, n_peaks: int = 1) -> float:
     """笔画时长（秒）。等时性：T = T_ref·(length/ref)^exponent，再 clamp。
 
-    长度翻倍 → 时长约 ×1.13；不是线性。复杂笔画更久应来自峰更多，而非弧长拖长。
+    长度翻倍 → 时长约 ×1.13；不是线性。拐角的减速由重叠脉冲自然产生，
+    因此不再为多峰额外累加停顿时间。
     """
     if length <= 0:
         return style.duration_min
     T = style.duration_ref * (length / style.reference_length) ** style.length_exponent
-    T += max(0, int(n_peaks) - 1) * style.command_spacing
     return max(style.duration_min, min(style.duration_max, T))
+
+
+def minimum_jerk_transition(t: float, T: float, p0, p1):
+    """Flash–Hogan minimum-jerk interpolation from ``p0`` to ``p1`` over [0, T].
+
+    Returns the 2D position at time ``t``.  Velocity and acceleration are zero at
+    both endpoints (smooth pen lift / lower), matching classical handwriting
+    trajectory synthesis (Edelman & Flash 1987).
+    """
+    u = max(0.0, min(1.0, t / T)) if T > 0 else 1.0
+    tau = 10.0 * u ** 3 - 15.0 * u ** 4 + 6.0 * u ** 5
+    return [p0[0] + (p1[0] - p0[0]) * tau, p0[1] + (p1[1] - p0[1]) * tau]
+
+
+def minimum_jerk_velocity(t: float, T: float, p0, p1):
+    """Velocity vector of the minimum-jerk transition (zero at both endpoints)."""
+    u = max(0.0, min(1.0, t / T)) if T > 0 else 0.0
+    dtau = 30.0 * u ** 2 * (1.0 - u) ** 2 / T if T > 0 else 0.0
+    return [(p1[0] - p0[0]) * dtau, (p1[1] - p0[1]) * dtau]
+
+
+def speed_curvature_violation(speeds, curvatures):
+    """Two-thirds power law check: |v| ∝ κ^(-1/3) ⇒ |v|·κ^(1/3) ≈ const.
+
+    Returns the coefficient of variation of ``|v|·κ^(1/3)`` over the samples
+    (lower is closer to the human law).  ``None`` if no valid samples.
+    """
+    vals = [v * (k ** (1.0 / 3.0))
+            for v, k in zip(speeds, curvatures) if v > 0 and k > 0]
+    if not vals:
+        return None
+    mean = sum(vals) / len(vals)
+    if mean <= 0:
+        return None
+    var = sum((x - mean) ** 2 for x in vals) / len(vals)
+    return (var ** 0.5) / mean
 
 
 def pen_up_gap(rng: random.Random, style: HandwritingStyle) -> float:

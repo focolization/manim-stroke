@@ -13,12 +13,13 @@ from .lparen import lparen
 from .rparen import rparen
 from .star import star
 from .letter import letter
+from .hanzi import hanzi
 from .stroke_text import StrokeText
 from .highlight import highlight
 
 __all__ = [
     "Mark", "MarkStyle",
     "underline", "strike", "check", "cross", "circle",
-    "dot_circle", "lparen", "rparen", "star", "letter", "StrokeText",
+    "dot_circle", "lparen", "rparen", "star", "letter", "hanzi", "StrokeText",
     "highlight",
 ]

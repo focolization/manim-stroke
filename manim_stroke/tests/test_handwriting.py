@@ -12,7 +12,8 @@ from manim_stroke.handwriting import (HandwritingStyle, DEFAULT_HANDWRITING,
     lognormal_mu_for_duration, lognormal_cumulative, lognormal_progress,
     lognormal_progress_multi, detect_peaks, stroke_duration, pen_up_gap, polyline_length, resample_arclength,
     wobble_polyline_normal, letter_glyph, slant_sequence, shear_polyline,
-    sample_glyph_ratios, segment_deform)
+    sample_glyph_ratios, segment_deform, minimum_jerk_transition,
+    minimum_jerk_velocity, speed_curvature_violation)
 import random
 
 
@@ -64,18 +65,47 @@ class TimingTests(unittest.TestCase):
         self.assertEqual(detect_peaks(elbow, math.radians(50), 0.12), [2])
         self.assertEqual(detect_peaks([[0, 0], [0.5, 0], [1, 0]]), [])
 
-    def test_multi_peak_progress_has_corner_pause_and_single_is_legacy(self):
+    def test_multi_peak_progress_smooth_and_monotonic_single_is_legacy(self):
         # n=1 is deliberately bit-for-bit the old curve.
-        self.assertEqual(lognormal_progress_multi(.37, .35, 1, .2),
+        self.assertEqual(lognormal_progress_multi(.37, .35, 1, .4),
                          lognormal_progress(.37, .35))
-        # During the inserted command gap no extra arclength is traversed.
-        before = lognormal_progress_multi(.46, .35, 2, .16)
-        after = lognormal_progress_multi(.54, .35, 2, .16)
-        self.assertAlmostEqual(before, after, places=7)
+        # Overlapping pulses: progress is strictly increasing with NO hard zero
+        # plateau (the corner pause of the old command_spacing model is gone).
+        p = [lognormal_progress_multi(a / 100, .35, 3, .4) for a in range(101)]
+        diffs = [p[i + 1] - p[i] for i in range(100)]
+        self.assertTrue(all(d >= 0 for d in diffs))               # monotonic
+        self.assertAlmostEqual(p[0], 0.0); self.assertAlmostEqual(p[100], 1.0)
+        # no hard plateau in the interior (the tiny 0 at the very start is just
+        # the lognormal's near-zero launch underflowing a 1% sample)
+        self.assertGreater(min(diffs[5:95]), 0.0)
+        # more overlap ⇒ smoother (higher min speed) than serial (overlap=0)
+        serial = [lognormal_progress_multi(a / 100, .35, 3, 0.0) for a in range(101)]
+        ser_min = min(serial[i + 1] - serial[i] for i in range(5, 95))
+        self.assertGreater(min(diffs[5:95]), ser_min)
 
-    def test_more_peaks_add_command_spacing_to_duration(self):
-        st = HandwritingStyle(duration_min=0.0, duration_max=10.0, command_spacing=.08)
-        self.assertAlmostEqual(stroke_duration(1.0, st, 3) - stroke_duration(1.0, st, 1), .16)
+    def test_more_peaks_no_longer_pad_duration(self):
+        # Corner deceleration is produced by the overlapping pulses, so the
+        # duration no longer grows with peak count (no command_spacing pad).
+        st = HandwritingStyle(duration_min=0.0, duration_max=10.0)
+        self.assertAlmostEqual(stroke_duration(1.0, st, 3), stroke_duration(1.0, st, 1))
+
+    def test_minimum_jerk_transition_endpoints_and_velocity(self):
+        p0, p1 = [0.0, 0.0], [1.0, 2.0]
+        self.assertEqual(minimum_jerk_transition(0.0, 1.0, p0, p1), [0.0, 0.0])
+        end = minimum_jerk_transition(1.0, 1.0, p0, p1)
+        self.assertAlmostEqual(end[0], 1.0); self.assertAlmostEqual(end[1], 2.0)
+        # zero velocity at both endpoints (smooth lift / lower)
+        self.assertEqual(minimum_jerk_velocity(0.0, 1.0, p0, p1), [0.0, 0.0])
+        self.assertEqual(minimum_jerk_velocity(1.0, 1.0, p0, p1), [0.0, 0.0])
+
+    def test_speed_curvature_law_penalizes_fast_turns(self):
+        # human law |v| ∝ κ^(-1/3): a slow sharp turn (high κ, low v) keeps
+        # v·κ^(1/3) near constant → low violation.  A fast sharp turn is bad.
+        good = speed_curvature_violation([1.0, 0.5, 0.25], [0.1, 0.8, 6.4])
+        bad = speed_curvature_violation([1.0, 1.0, 1.0], [0.1, 0.8, 6.4])
+        self.assertIsNotNone(good)
+        self.assertLess(good, bad)
+
 
     def test_pen_up_gap_clamped(self):
         st = DEFAULT_HANDWRITING

@@ -11,11 +11,14 @@ strike(target, ..., style=None)
 check(target, ..., style=None)
 cross(target, ..., style=None)
 circle(target, ..., style=None)
+highlight(target, ..., style=None)
 ```
 
-它们根据 `target` 的 bbox 自适应位置和大小：下划线、删除线、勾、叉和圈分别对应五种
-课堂批注语义。`check` 与 `cross` 用 `mark_size` 控制符号整体大小；其他标记使用 `size`
-控制笔迹直径。`circle` 的 `ratio` 控制圈相对目标 bbox 的放大比例。
+它们根据 `target` 的 bbox 自适应位置和大小：下划线、删除线、勾、叉、圈分别对应五种
+课堂批注语义，`highlight` 是粗圆头、半透明、带手绘抖动的荧光笔横扫。`check` 与
+`cross` 用 `mark_size` 控制符号整体大小；其他标记使用 `size` 控制笔迹直径。`circle` 的
+`ratio` 控制圈相对 target bbox 的放大比例。`highlight` 另有 `opacity`(半透明度)、
+`pad`(左右多出量)、`jitter`(中心线手绘抖动)。
 
 所有函数共有的视觉参数如下：
 
@@ -34,7 +37,56 @@ circle(target, ..., style=None)
 
 `underline` 有 `offset` 与 `n_points`；`strike` 有 `n_points`；`check` 有 `mark_size`、
 `curvature`、`offset` 与 `num_points`；`cross` 有 `mark_size` 与 `n_points`；`circle` 有
-`ratio`、`closed` 与 `n_points`。点数必须至少为 2，`ratio` 必须大于 0。
+`ratio`、`closed` 与 `n_points`；`highlight` 有 `opacity`、`pad`、`jitter`、`n_points` 与
+`variation`。点数必须至少为 2，`ratio` 必须大于 0。
+
+## 手写（handwriting）API
+
+手写入口在 `marks` 层，播放动画在 `animation.DrawHandwriting`。它们返回 `Mark`，与其它
+标记一样可 `Scene.add()`、移动、缩放，并交给 `DrawHandwriting` 逐笔写出来。
+
+```python
+# 拉丁字母（Hershey）：letter(target, char, ...)
+# 单个汉字：hanzi(target, char, ...)
+# 整词：StrokeText("learn with manim")
+```
+
+### `letter(target, char, font="futural", size=None, color=None, position="left",
+        offset=None, handwriting=None, seed=None, speed="handwriting", style=None) -> Mark`
+
+在目标旁画一个手绘**拉丁**字母/数字/符号（Hershey，不支持中文，中文用 `hanzi`）。
+`font` 选字体（`futural` 干净、`cursive`/`scripts` 手写感）；`size` 字母高度（None 自适应
+目标高度）；`position` 相对目标方位——`left/right/above/below/upper-right/center`；
+`handwriting` 传 `HandwritingStyle`（默认 `DEFAULT_HANDWRITING`）；`seed` 决定笔迹身份。
+
+### `hanzi(target, char, size=None, color=None, position="left", offset=None,
+        handwriting=None, source=None, seed=None, speed="handwriting", style=None) -> Mark`
+
+在目标旁画一个手写**汉字**。`char` 为单个汉字（内置 9500+ 常用字数据，无需联网/字体）。
+`handwriting` 默认 `HANZI_HANDWRITING`；`source` 可传自定义数据源，缺省用内置 medians
+数据。`size` 为字高，其余参数同 `letter`。
+
+### `StrokeText(text, font="futural", size=1.5, color="#6FA8C8", at=ORIGIN,
+        handwriting=None, seed=None, letter_gap=None, speed="handwriting",
+        segment=True, space_width=0.42) -> Mark`
+
+手写一整词：字母并排成一条 `Mark`，交给 `DrawHandwriting` 整词播放。空格是排版前进量，
+不是字形——`"learn with manim"` 直接可用。`space_width` 以 `size` 为单位。
+
+### `DrawHandwriting(mark, handwriting=None)`
+
+按真实笔顺把 `letter()` / `hanzi()` / `StrokeText` 写出来（每个笔画用其 `Mark` 自带时长）。
+返回 manim `Succession` 动画，`Scene.play(DrawHandwriting(mark))` 即可。
+
+### `HandwritingStyle` / `DEFAULT_HANDWRITING` / `HANZI_HANDWRITING`
+
+`HandwritingStyle` 是不可变 dataclass，集中视觉与运动参数（笔宽、倾斜、抖动、笔锋、
+书写节奏等）。预设两个：`DEFAULT_HANDWRITING`（拉丁）、`HANZI_HANDWRITING`（汉字，
+方形字格、关闭结构变形）。通过 `handwriting=` 传入上述函数即可调观感；内部的时间/噪声
+算法对调用方透明，通常无需逐个手调。
+
+> 说明：底层变形/时间算法（噪声、速度曲线等）属内部实现，不构成公开 API，详见
+> `ARCHITECTURE.md`。
 
 ## `MarkStyle`
 

@@ -18,8 +18,8 @@ class HandwritingStyle:
     reference_length: float = 1.0       # power-law 的参考长度（字高=1）
     lognormal_sigma: float = 0.35       # 对数时间标准差
     completion_quantile: float = 0.995  # 在总时长 T 时完成此分位 → 反算 μ
-    command_spacing: float = 0.08       # 多峰时相邻运动基元之间的停顿（秒）
-    peak_turn_threshold_deg: float = 55.0  # 累计转角超过此值时新增一个运动基元
+    peak_overlap: float = 0.4           # 重叠 Σ-lognormal 脉冲相邻共享比例（0=串行，越高越平滑）
+    peak_turn_threshold_deg: float = 55.0  # 累计转角超过此值时新增一个虚拟目标(virtual target)
     peak_min_segment_length: float = 0.12  # 峰之间最短弧长（字高=1）
     peak_max_per_stroke: int = 3
     duration_min: float = 0.35
@@ -84,3 +84,16 @@ class HandwritingStyle:
 
 # 子包内共享的单一默认实例；调用方也可传自己的。
 DEFAULT_HANDWRITING = HandwritingStyle()
+
+
+# 汉字默认风格：汉字笔划密、整体方正，比拉丁 cursive 更端正、更收敛，
+# 避免相邻笔划打架/粘连。几何/定时管道与拉丁共用，只是这组默认值不同。
+HANZI_HANDWRITING = HandwritingStyle(
+    writer_slant_deg=2.0,       # 更端正（拉丁 8°→2°）
+    char_slant_std_deg=0.6,     # 字间倾斜漂移更小
+    char_slant_limit_deg=1.5,   # |u_i| 钳制更紧
+    structure_std=0.0,          # v1 关闭结构变形（防笔划打架，待部件级实现）
+    structure_limit=0.0,
+    jitter_rms=0.003,           # 抖动更小（防相邻笔划粘连）
+    glyph_ratio_limit=0.02,     # 汉字 1:1 方块，宽高比钳更紧
+)

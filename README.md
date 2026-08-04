@@ -98,6 +98,19 @@ word = StrokeText("learn math", font="futural", size=1.0,
 self.play(DrawHandwriting(word))
 ```
 
+### 手写汉字（v0.2.0）
+
+汉字同样逐笔手写，内置 9500+ 常用字的 medians 数据（来自 Make Me a Hanzi，无需联网/字体）：
+
+```python
+from manim_stroke import DrawHandwriting, hanzi
+
+h = hanzi(ORIGIN, "永", size=1.0, color="#2E7D6B", position="center", seed=7)
+self.play(DrawHandwriting(h))
+```
+
+拉丁与汉字共用同一条手写管道（`letter`/`hanzi`/`StrokeText`），只有数据源按语种隔离。
+
 对比的重点不是“原生 Manim 完全做不到”，而是：同样的课堂动作，
 `manim-stroke` 不需要每次手写 bbox 计算、路径采样和逐笔动画，且每个标记仍可通过
 `seed` 复现、通过 `variation` 控制自然程度。
@@ -110,7 +123,7 @@ README 保留可快速运行的入口；完整公开 API 按用户任务拆在 [
 - [标记 API](docs/marks.md)：下划线、勾、叉、圈、星号、括号等。
 - [动画 API](docs/animation.md)：`DrawMark` 与 `DrawHandwriting`。
 - [风格与随机性](docs/styles.md)：`MarkStyle`、`HandwritingStyle`、`seed`。
-- [手写文字 API](docs/handwriting.md)：`letter`、`StrokeText`、字体、笔顺与小写 metrics。
+- [手写文字 API](docs/handwriting.md)：`letter`、`hanzi`、`StrokeText`、字体、笔顺与小写 metrics。
 - [底层几何 API](docs/geometry.md)：`get_stroke`、`get_stroke_points`、`StrokePoint`。
 - [致谢、第三方 notices 与方法参考](docs/references.md)。
 
